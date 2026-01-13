@@ -18,26 +18,38 @@ export default function LoginPage() {
     setError('')
 
     try {
+      console.log('Attempting login with:', { email, password })
+
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
 
+      console.log('Response status:', res.status)
+
       const data = await res.json()
+      console.log('Response data:', data)
 
       if (!res.ok) {
         setError('البريد أو كلمة المرور غير صحيحة')
         return
       }
 
+      if (!data.success) {
+        setError(data.message || 'البريد أو كلمة المرور غير صحيحة')
+        return
+      }
+
       // Store user in localStorage
       localStorage.setItem('user', JSON.stringify(data.user))
+      console.log('User stored in localStorage, redirecting to dashboard')
 
       // Redirect to dashboard
       router.push('/dashboard')
-    } catch (err) {
-      setError('حدث خطأ في الدخول')
+    } catch (err: any) {
+      console.error('Login error:', err)
+      setError(err?.message || 'حدث خطأ في الدخول - تحقق من الاتصال')
     } finally {
       setIsLoading(false)
     }
