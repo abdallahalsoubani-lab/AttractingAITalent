@@ -24,7 +24,7 @@ if (process.env.NODE_ENV === 'production') {
 export default prisma
 
 // إضافة prisma إلى global namespace
-// eslint-disable-next-line no-var
 declare global {
+  // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined
 }
