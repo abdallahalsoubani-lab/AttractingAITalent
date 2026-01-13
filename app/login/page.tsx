@@ -18,6 +18,7 @@ export default function LoginPage() {
     setError('')
 
     try {
+      // eslint-disable-next-line no-console
       console.log('Attempting login with:', { email, password })
 
       const res = await fetch('/api/auth/signin', {
@@ -26,9 +27,11 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
 
+      // eslint-disable-next-line no-console
       console.log('Response status:', res.status)
 
       const data = await res.json()
+      // eslint-disable-next-line no-console
       console.log('Response data:', data)
 
       if (!res.ok) {
@@ -43,11 +46,13 @@ export default function LoginPage() {
 
       // Store user in localStorage
       localStorage.setItem('user', JSON.stringify(data.user))
+      // eslint-disable-next-line no-console
       console.log('User stored in localStorage, redirecting to dashboard')
 
       // Redirect to dashboard
       router.push('/dashboard')
     } catch (err: any) {
+      // eslint-disable-next-line no-console
       console.error('Login error:', err)
       setError(err?.message || 'حدث خطأ في الدخول - تحقق من الاتصال')
     } finally {
