@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('demo@example.com')
+  const [password, setPassword] = useState('demo123')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -17,12 +18,26 @@ export default function LoginPage() {
     setError('')
 
     try {
-      // Placeholder for authentication logic
-      console.log('Login attempt:', { email, password })
-      // This will be replaced with actual NextAuth.js logic
-      alert('تسجيل الدخول غير متوفر حالياً. سيتم تفعيله قريباً.')
+      const res = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError('البريد أو كلمة المرور غير صحيحة')
+        return
+      }
+
+      // Store user in localStorage
+      localStorage.setItem('user', JSON.stringify(data.user))
+
+      // Redirect to dashboard
+      router.push('/dashboard')
     } catch (err) {
-      setError('فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.')
+      setError('حدث خطأ في الدخول')
     } finally {
       setIsLoading(false)
     }
@@ -87,20 +102,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Remember Me & Forgot Password */}
-            <div className="flex justify-between items-center text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-gray-300"
-                  disabled={isLoading}
-                />
-                <span className="text-gray-700">تذكرني</span>
-              </label>
-              <Link href="/forgot-password" className="text-green-700 hover:text-green-800 font-medium">
-                هل نسيت كلمة المرور؟
-              </Link>
-            </div>
 
             {/* Error Message */}
             {error && (
@@ -125,24 +126,16 @@ export default function LoginPage() {
               <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">أو</span>
+              <span className="px-2 bg-white text-gray-500">بيانات اختبار</span>
             </div>
           </div>
 
           {/* Demo Credentials */}
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-medium text-blue-900 mb-2">بيانات اختبار:</p>
+            <p className="text-sm font-medium text-blue-900 mb-2">البيانات الافتراضية:</p>
             <p className="text-xs text-blue-700">البريد: demo@example.com</p>
             <p className="text-xs text-blue-700">كلمة المرور: demo123</p>
           </div>
-
-          {/* Sign Up Link */}
-          <p className="text-center text-gray-700 mt-6">
-            ليس لديك حساب؟{' '}
-            <Link href="/register" className="text-green-700 hover:text-green-800 font-medium">
-              إنشاء حساب
-            </Link>
-          </p>
         </div>
 
         {/* Footer */}
