@@ -8,11 +8,25 @@ const validCredentials = {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[API] Signin request received')
+
     const body = await request.json()
+    console.log('[API] Request body parsed:', { email: body.email, passwordLength: body.password?.length })
+
     const { email, password } = body
+
+    // Validate input
+    if (!email || !password) {
+      console.log('[API] Missing email or password')
+      return NextResponse.json(
+        { success: false, message: 'Email and password are required' },
+        { status: 400 }
+      )
+    }
 
     // Validate credentials
     if (email === validCredentials.email && password === validCredentials.password) {
+      console.log('[API] Credentials matched, generating user token')
       return NextResponse.json(
         {
           success: true,
@@ -27,13 +41,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('[API] Invalid credentials provided')
     return NextResponse.json(
       { success: false, message: 'Invalid credentials' },
       { status: 401 }
     )
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[API] Error in signin endpoint:', error)
     return NextResponse.json(
-      { success: false, message: 'Server error' },
+      { success: false, message: 'Server error: ' + error?.message },
       { status: 500 }
     )
   }
