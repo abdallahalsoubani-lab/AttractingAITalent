@@ -113,8 +113,7 @@ async function main() {
     data: {
       name: 'Machine Learning Engineer',
       nameAr: 'مهندس تعلم آلي',
-      description: 'ML and Deep Learning Specialization',
-      descriptionAr: 'تخصص في التعلم الآلي والتعلم العميق',
+      description: 'ML and Deep Learning Specialization - تخصص في التعلم الآلي والتعلم العميق',
       category: 'AI',
     },
   })
@@ -123,8 +122,7 @@ async function main() {
     data: {
       name: 'Data Scientist',
       nameAr: 'عالم بيانات',
-      description: 'Data Science and Analytics',
-      descriptionAr: 'تحليل البيانات والإحصائيات',
+      description: 'Data Science and Analytics - تحليل البيانات والإحصائيات',
       category: 'Data',
     },
   })
