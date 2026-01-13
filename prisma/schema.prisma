@@ -1,0 +1,832 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// نماذج المستخدمين والصلاحيات
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  nameAr        String    @map("name_ar")
+  role          UserRole  @default(VIEWER)
+  avatar        String?
+  phone         String?
+  department    String?
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLogin     DateTime? @map("last_login")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // العلاقات
+  projects          ProjectMember[]
+  jobsCreated       Job[]              @relation("JobCreator")
+  candidatesAdded   Candidate[]        @relation("CandidateCreator")
+  interviews        InterviewPanel[]
+  evaluations       Evaluation[]
+  offers            Offer[]
+  comments          Comment[]
+  activityLogs      ActivityLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN           // مدير النظام
+  HR_MANAGER      // مدير الموارد البشرية
+  HR_SPECIALIST   // أخصائي موارد بشرية
+  TECH_REVIEWER   // مراجع تقني
+  CONSULTANT      // استشاري
+  VIEWER          // مشاهد فقط
+}
+
+// ============================================
+// نماذج المشاريع والحوكمة
+// ============================================
+
+model Project {
+  id              String        @id @default(cuid())
+  name            String
+  nameAr          String        @map("name_ar")
+  description     String?
+  descriptionAr   String?       @map("description_ar")
+  status          ProjectStatus @default(ACTIVE)
+  startDate       DateTime      @map("start_date")
+  endDate         DateTime?     @map("end_date")
+  budget          Decimal?      @db.Decimal(12, 2)
+  charterDoc      String?       @map("charter_doc")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // العلاقات
+  members         ProjectMember[]
+  jobs            Job[]
+  decisions       Decision[]
+  risks           Risk[]
+  reports         Report[]
+  raciMatrix      RaciEntry[]
+
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  userId    String   @map("user_id")
+  role      String
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model RaciEntry {
+  id           String   @id @default(cuid())
+  projectId    String   @map("project_id")
+  activity     String
+  responsible  String
+  accountable  String
+  consulted    String?
+  informed     String?
+
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("raci_entries")
+}
+
+model Decision {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  title       String
+  description String
+  madeBy      String   @map("made_by")
+  madeAt      DateTime @map("made_at")
+  impact      String?
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("decisions")
+}
+
+model Risk {
+  id           String     @id @default(cuid())
+  projectId    String     @map("project_id")
+  title        String
+  description  String
+  probability  RiskLevel  @default(MEDIUM)
+  impact       RiskLevel  @default(MEDIUM)
+  mitigation   String?
+  status       RiskStatus @default(OPEN)
+  owner        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("risks")
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskStatus {
+  OPEN
+  MITIGATED
+  CLOSED
+}
+
+// ============================================
+// نماذج المسارات الوظيفية والمهارات
+// ============================================
+
+model CareerTrack {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String   @map("name_ar")
+  description String?
+  category    String
+
+  levels      CareerLevel[]
+  jobs        Job[]
+  skills      SkillRequirement[]
+
+  @@map("career_tracks")
+}
+
+model CareerLevel {
+  id            String      @id @default(cuid())
+  trackId       String      @map("track_id")
+  name          String
+  nameAr        String      @map("name_ar")
+  yearsMin      Int         @map("years_min")
+  yearsMax      Int?        @map("years_max")
+  salaryMin     Decimal?    @db.Decimal(10, 2) @map("salary_min")
+  salaryMax     Decimal?    @db.Decimal(10, 2) @map("salary_max")
+
+  track         CareerTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  jobs          Job[]
+
+  @@map("career_levels")
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String   @map("name_ar")
+  category    String
+  description String?
+
+  requirements    SkillRequirement[]
+  candidateSkills CandidateSkill[]
+
+  @@map("skills")
+}
+
+model SkillRequirement {
+  id          String      @id @default(cuid())
+  trackId     String?     @map("track_id")
+  jobId       String?     @map("job_id")
+  skillId     String      @map("skill_id")
+  importance  Importance  @default(REQUIRED)
+  minLevel    Int         @default(3)
+
+  track       CareerTrack? @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  job         Job?         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill       Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@map("skill_requirements")
+}
+
+enum Importance {
+  REQUIRED
+  PREFERRED
+  NICE_TO_HAVE
+}
+
+// ============================================
+// نماذج الوظائف
+// ============================================
+
+model Job {
+  id              String      @id @default(cuid())
+  projectId       String?     @map("project_id")
+  trackId         String?     @map("track_id")
+  levelId         String?     @map("level_id")
+  createdById     String      @map("created_by_id")
+
+  title           String
+  titleAr         String      @map("title_ar")
+  description     String      @db.Text
+  descriptionAr   String      @db.Text @map("description_ar")
+
+  department      String?
+  location        String?
+  isRemote        Boolean     @default(false) @map("is_remote")
+
+  salaryMin       Decimal?    @db.Decimal(10, 2) @map("salary_min")
+  salaryMax       Decimal?    @db.Decimal(10, 2) @map("salary_max")
+  currency        String      @default("SAR")
+
+  status          JobStatus   @default(DRAFT)
+  priority        Priority    @default(MEDIUM)
+
+  openings        Int         @default(1)
+  deadline        DateTime?
+
+  rubricJson      Json?       @map("rubric_json")
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  publishedAt     DateTime?   @map("published_at")
+  closedAt        DateTime?   @map("closed_at")
+
+  // العلاقات
+  project         Project?    @relation(fields: [projectId], references: [id])
+  track           CareerTrack? @relation(fields: [trackId], references: [id])
+  level           CareerLevel? @relation(fields: [levelId], references: [id])
+  createdBy       User        @relation("JobCreator", fields: [createdById], references: [id])
+
+  skillRequirements SkillRequirement[]
+  applications      Application[]
+  interviewKits     InterviewKit[]
+  sourcingChannels  SourcingChannel[]
+
+  @@map("jobs")
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  ON_HOLD
+  CLOSED
+  FILLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SourcingChannel {
+  id          String   @id @default(cuid())
+  jobId       String   @map("job_id")
+  name        String
+  url         String?
+  notes       String?
+
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("sourcing_channels")
+}
+
+// ============================================
+// نماذج المرشحين
+// ============================================
+
+model Candidate {
+  id              String   @id @default(cuid())
+  addedById       String   @map("added_by_id")
+
+  firstName       String   @map("first_name")
+  lastName        String   @map("last_name")
+  firstNameAr     String?  @map("first_name_ar")
+  lastNameAr      String?  @map("last_name_ar")
+  email           String   @unique
+  phone           String?
+
+  country         String?
+  city            String?
+  nationality     String?
+
+  linkedinUrl     String?  @map("linkedin_url")
+  githubUrl       String?  @map("github_url")
+  portfolioUrl    String?  @map("portfolio_url")
+  scholarUrl      String?  @map("scholar_url")
+
+  cvUrl           String?  @map("cv_url")
+  cvParsedJson    Json?    @map("cv_parsed_json")
+
+  aiSummary       String?  @db.Text @map("ai_summary")
+  aiStrengths     String[] @map("ai_strengths")
+  aiWeaknesses    String[] @map("ai_weaknesses")
+
+  tags            String[]
+  source          String?
+
+  yearsExperience Int?     @map("years_experience")
+  currentCompany  String?  @map("current_company")
+  currentTitle    String?  @map("current_title")
+  expectedSalary  Decimal? @db.Decimal(10, 2) @map("expected_salary")
+  noticePeriod    Int?     @map("notice_period")
+
+  isBlacklisted   Boolean  @default(false) @map("is_blacklisted")
+  blacklistReason String?  @map("blacklist_reason")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // العلاقات
+  addedBy         User     @relation("CandidateCreator", fields: [addedById], references: [id])
+  skills          CandidateSkill[]
+  applications    Application[]
+  documents       CandidateDocument[]
+
+  @@map("candidates")
+}
+
+model CandidateSkill {
+  id          String    @id @default(cuid())
+  candidateId String    @map("candidate_id")
+  skillId     String    @map("skill_id")
+  level       Int       @default(3)
+  yearsUsed   Int?      @map("years_used")
+  verified    Boolean   @default(false)
+
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, skillId])
+  @@map("candidate_skills")
+}
+
+model CandidateDocument {
+  id          String       @id @default(cuid())
+  candidateId String       @map("candidate_id")
+  name        String
+  type        DocumentType
+  url         String
+  size        Int?
+  uploadedAt  DateTime     @default(now()) @map("uploaded_at")
+
+  candidate   Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_documents")
+}
+
+enum DocumentType {
+  CV
+  COVER_LETTER
+  CERTIFICATE
+  PORTFOLIO
+  REFERENCE
+  OTHER
+}
+
+// ============================================
+// نماذج التقديمات والـ Pipeline
+// ============================================
+
+model Application {
+  id            String            @id @default(cuid())
+  candidateId   String            @map("candidate_id")
+  jobId         String            @map("job_id")
+
+  stage         ApplicationStage  @default(NEW)
+  status        ApplicationStatus @default(ACTIVE)
+
+  matchScore    Decimal?          @db.Decimal(5, 2) @map("match_score")
+  aiRanking     Int?              @map("ai_ranking")
+
+  appliedAt     DateTime          @default(now()) @map("applied_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  rejectionReason String?         @map("rejection_reason")
+  withdrawReason  String?         @map("withdraw_reason")
+
+  // العلاقات
+  candidate     Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job           Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  stageHistory  StageHistory[]
+  interviews    Interview[]
+  evaluations   Evaluation[]
+  offers        Offer[]
+  comments      Comment[]
+
+  @@unique([candidateId, jobId])
+  @@map("applications")
+}
+
+enum ApplicationStage {
+  NEW
+  SCREENED
+  SHORTLISTED
+  TECH_INTERVIEW
+  HR_INTERVIEW
+  FINAL_INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationStatus {
+  ACTIVE
+  ON_HOLD
+  CLOSED
+}
+
+model StageHistory {
+  id            String           @id @default(cuid())
+  applicationId String           @map("application_id")
+  fromStage     ApplicationStage @map("from_stage")
+  toStage       ApplicationStage @map("to_stage")
+  changedBy     String           @map("changed_by")
+  reason        String?
+  changedAt     DateTime         @default(now()) @map("changed_at")
+
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("stage_history")
+}
+
+// ============================================
+// نماذج المقابلات
+// ============================================
+
+model Interview {
+  id            String          @id @default(cuid())
+  applicationId String          @map("application_id")
+  kitId         String?         @map("kit_id")
+
+  type          InterviewType
+  title         String
+  scheduledAt   DateTime        @map("scheduled_at")
+  duration      Int             @default(60)
+  location      String?
+  isRemote      Boolean         @default(true) @map("is_remote")
+
+  status        InterviewStatus @default(SCHEDULED)
+
+  recordingUrl  String?         @map("recording_url")
+  transcriptUrl String?         @map("transcript_url")
+  aiSummary     String?         @db.Text @map("ai_summary")
+
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  // العلاقات
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kit           InterviewKit?   @relation(fields: [kitId], references: [id])
+  panelMembers  InterviewPanel[]
+  notes         InterviewNote[]
+
+  @@map("interviews")
+}
+
+enum InterviewType {
+  PHONE_SCREEN
+  TECHNICAL
+  BEHAVIORAL
+  SYSTEM_DESIGN
+  FINAL
+  HR
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model InterviewPanel {
+  id          String    @id @default(cuid())
+  interviewId String    @map("interview_id")
+  userId      String    @map("user_id")
+  role        String    @default("Interviewer")
+
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, userId])
+  @@map("interview_panels")
+}
+
+model InterviewNote {
+  id          String    @id @default(cuid())
+  interviewId String    @map("interview_id")
+  content     String    @db.Text
+  timestamp   Int?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@map("interview_notes")
+}
+
+// ============================================
+// نماذج أسئلة المقابلات
+// ============================================
+
+model InterviewKit {
+  id          String   @id @default(cuid())
+  jobId       String   @map("job_id")
+  name        String
+  nameAr      String   @map("name_ar")
+  type        InterviewType
+
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  questions   InterviewQuestion[]
+  interviews  Interview[]
+
+  @@map("interview_kits")
+}
+
+model InterviewQuestion {
+  id              String         @id @default(cuid())
+  kitId           String?        @map("kit_id")
+
+  question        String         @db.Text
+  questionAr      String?        @db.Text @map("question_ar")
+  category        String
+  difficulty      Difficulty     @default(MEDIUM)
+  expectedAnswer  String?        @db.Text @map("expected_answer")
+  scoringGuide    String?        @db.Text @map("scoring_guide")
+  timeMinutes     Int            @default(5) @map("time_minutes")
+
+  isAiGenerated   Boolean        @default(false) @map("is_ai_generated")
+
+  kit             InterviewKit?  @relation(fields: [kitId], references: [id], onDelete: Cascade)
+
+  @@map("interview_questions")
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// ============================================
+// نماذج التقييم
+// ============================================
+
+model Evaluation {
+  id            String         @id @default(cuid())
+  applicationId String         @map("application_id")
+  evaluatorId   String         @map("evaluator_id")
+
+  type          EvaluationType
+  overallScore  Decimal        @db.Decimal(4, 2) @map("overall_score")
+
+  scoresJson    Json           @map("scores_json")
+  strengths     String[]
+  weaknesses    String[]
+  recommendation String?       @db.Text
+
+  isAiGenerated Boolean        @default(false) @map("is_ai_generated")
+  humanOverride Boolean        @default(false) @map("human_override")
+  overrideReason String?       @map("override_reason")
+
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  // العلاقات
+  application   Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  evaluator     User           @relation(fields: [evaluatorId], references: [id])
+
+  @@map("evaluations")
+}
+
+enum EvaluationType {
+  CV_SCREENING
+  TECHNICAL_INTERVIEW
+  HR_INTERVIEW
+  FINAL_INTERVIEW
+  OVERALL
+}
+
+// ============================================
+// نماذج العروض الوظيفية
+// ============================================
+
+model Offer {
+  id            String      @id @default(cuid())
+  applicationId String      @map("application_id")
+  createdById   String      @map("created_by_id")
+
+  salary        Decimal     @db.Decimal(10, 2)
+  currency      String      @default("SAR")
+  bonus         Decimal?    @db.Decimal(10, 2)
+  benefits      String[]
+
+  startDate     DateTime    @map("start_date")
+  expiryDate    DateTime    @map("expiry_date")
+
+  status        OfferStatus @default(DRAFT)
+  version       Int         @default(1)
+
+  documentUrl   String?     @map("document_url")
+  notes         String?     @db.Text
+
+  sentAt        DateTime?   @map("sent_at")
+  respondedAt   DateTime?   @map("responded_at")
+  response      String?
+
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // العلاقات
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdBy     User        @relation(fields: [createdById], references: [id])
+  history       OfferHistory[]
+
+  @@map("offers")
+}
+
+enum OfferStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  NEGOTIATING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  WITHDRAWN
+}
+
+model OfferHistory {
+  id        String   @id @default(cuid())
+  offerId   String   @map("offer_id")
+  field     String
+  oldValue  String?  @map("old_value")
+  newValue  String?  @map("new_value")
+  changedBy String   @map("changed_by")
+  changedAt DateTime @default(now()) @map("changed_at")
+
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@map("offer_history")
+}
+
+// ============================================
+// نماذج خبراء AI العالميين
+// ============================================
+
+model AiExpert {
+  id              String       @id @default(cuid())
+
+  name            String
+  nameAr          String?      @map("name_ar")
+  email           String?
+
+  affiliation     String?
+  country         String?
+
+  level           ExpertLevel
+  specializations String[]
+
+  hIndex          Int?         @map("h_index")
+  citations       Int?
+  publications    Int?
+
+  semanticScholarId String?    @unique @map("semantic_scholar_id")
+  orcidId           String?    @unique @map("orcid_id")
+  dblpId            String?    @map("dblp_id")
+
+  googleScholar   String?      @map("google_scholar")
+  linkedinUrl     String?      @map("linkedin_url")
+  personalWebsite String?      @map("personal_website")
+
+  summary         String?      @db.Text
+  notableWork     String[]     @map("notable_work")
+
+  lastUpdated     DateTime     @default(now()) @map("last_updated")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  isAutoImported  Boolean      @default(true) @map("is_auto_imported")
+
+  @@map("ai_experts")
+}
+
+enum ExpertLevel {
+  ELITE
+  TOP
+  EMERGING
+}
+
+// ============================================
+// نماذج التقارير
+// ============================================
+
+model Report {
+  id          String     @id @default(cuid())
+  projectId   String?    @map("project_id")
+
+  type        ReportType
+  title       String
+  titleAr     String     @map("title_ar")
+
+  period      String
+
+  dataJson    Json       @map("data_json")
+  insightsJson Json?     @map("insights_json")
+
+  documentUrl String?    @map("document_url")
+
+  createdAt   DateTime   @default(now()) @map("created_at")
+  publishedAt DateTime?  @map("published_at")
+
+  // العلاقات
+  project     Project?   @relation(fields: [projectId], references: [id])
+
+  @@map("reports")
+}
+
+enum ReportType {
+  MONTHLY_RECRUITMENT
+  MONTHLY_EXPERTS
+  KPI_DASHBOARD
+  LESSONS_LEARNED
+  CUSTOM
+}
+
+// ============================================
+// نماذج التعليقات والنشاط
+// ============================================
+
+model Comment {
+  id            String      @id @default(cuid())
+  applicationId String?     @map("application_id")
+  authorId      String      @map("author_id")
+  parentId      String?     @map("parent_id")
+
+  content       String      @db.Text
+  isInternal    Boolean     @default(true) @map("is_internal")
+
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // العلاقات
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  author        User         @relation(fields: [authorId], references: [id])
+  parent        Comment?     @relation("CommentReplies", fields: [parentId], references: [id])
+  replies       Comment[]    @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?  @map("user_id")
+
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+
+  details     Json?
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // العلاقات
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("activity_logs")
+}
+
+// ============================================
+// نماذج الإعدادات
+// ============================================
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  category  String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
